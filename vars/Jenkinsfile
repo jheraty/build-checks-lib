@@ -1,0 +1,35 @@
+#!/usr/bin/env groovy
+
+
+pipeline{
+      agent { label 'master' }
+      stages {
+        stage('Get_message_and_check_for_DR') {
+                steps {
+                    script {
+                        gitCommitMsg = sh(returnStdout: true, script: 'git log -1 --pretty=format:%s').trim()
+                    }
+   		    	 }
+   	    }
+        stage ('If_DR_passes') {
+   	            when {
+                    expression {
+                        gitCommitMsg =~ /^DR[1-9]{5}|^DR[1-9]{6}|^DR-[1-9]{5}|^DR-[1-9]{6}/
+                    }
+                }
+                steps {
+   			        sh """curl -H "Authorization: Basic amgxODYwOTk6MXRzYWJ1blcpcmxk" --data '{"state":"success", "description":"Properly formatted DR was detected.Thanks", "context":"DR Integration Check"}' https://github.td.teradata.com/api/v3/repos/cit/aloha/statuses/""$GIT_COMMIT"" > /dev/null"""
+                }
+        }
+   	    stage ('if_DR_fails') {
+   	        when {
+   		        expression {
+                    !(gitCommitMsg =~ /^DR[1-9]{5}|^DR[1-9]{6}|^DR-[1-9]{5}|^DR-[1-9]{6}/)
+                }
+            }
+    		steps {
+   			    sh """curl -H "Authorization: Basic amgxODYwOTk6MXRzYWJ1blcpcmxk" --data '{"state":"failure", "description":"No valid DR was detected in your commit message.", "context":"DR Integration Check"}' https://github.td.teradata.com/api/v3/repos/cit/aloha/statuses/""$GIT_COMMIT"" > /dev/null"""
+            }
+        }
+    }
+}
